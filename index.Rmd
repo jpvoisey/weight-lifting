@@ -1,0 +1,311 @@
+---
+title: "Weight Lifting Method Detection"
+author: "Jeremy Voisey"
+date: "12 April 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r pecent, echo = FALSE}
+percent <- function(x) {
+    paste0(format(x * 100, digits = 4, nsmall =  2),"%")
+}
+```
+
+## introduction
+
+In this <a href = "http://groupware.les.inf.puc-rio.br/har">study by Veloso at  al.</a>, accelerometers were placed in various positions on
+subjects doing weight lifting exercises. The aim is to identify what method is being used during the exercise.
+
+The sensors were placed on: 
+
+* Upper Arm
+
+* Forearm
+
+* Belt
+
+* Dumbbell
+
+An experienced weight lifter observed the exercise and classified it as:
+
+* A - correct Method
+
+* B - Throwing elbows
+
+* C - Only lifting dumbbell halfway
+
+* D - Only lowering dumbbell halfway
+
+* E - Throwing hips
+
+## Data Processing
+
+### Download
+
+The training and test data (reserved for the final test) is downloaded, if required and loaded.
+
+```{r download}
+trainURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+trainFile <- "pml-training.csv"
+if (!file.exists(trainFile)) {
+    download.file(trainURL, trainFile)
+}
+trainingAll <- read.csv(trainFile)
+
+finalTestURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+finalTestFile <- "pml-testing.csv"
+if (!file.exists(finalTestFile)) {
+    download.file(finalTestURL, finalTestFile)
+}
+finalTesting <- read.csv(finalTestFile)
+```
+
+### Variable Selection
+
+Variables that are missing in the final testing data are removed from both sets.
+
+```{r missingtest}
+NAMean <- sapply(finalTesting, function(x){mean(is.na(x))})
+notNA <- (NAMean < 0.9)
+trainingAll <- trainingAll[,notNA]
+finalTesting <- finalTesting[,notNA]
+```
+
+The first seven columns contains, weight lifters names, dates etc, are also removed.
+
+```{r nonfeatures}
+trainingAll <- trainingAll[,-c(1:7)]
+finalTesting <- finalTesting[,-c(1:7)]
+```
+
+## Cross Validation
+
+Training data is split into three parts:
+
+* 60% Training
+
+* 20% Base Model Testing and Stack Training (1/2 of 40%)
+
+* 20% Stacked Model Testing
+
+
+```{r datasplit, warning = FALSE, message = FALSE}
+library(caret)
+set.seed(271001)
+inTrain = createDataPartition(trainingAll$classe, p = 0.6, list = FALSE)
+training <- trainingAll[inTrain,]
+trainingTMP <- trainingAll[-inTrain,]
+inStack = createDataPartition(trainingTMP$classe, p = 1/2, list = FALSE)
+trainingStack <- trainingTMP[inStack,]
+trainingTest <- trainingTMP[-inStack,]
+rm(trainingTMP)
+```
+
+## Exporatory Analysis
+
+### featureplot
+None of the individual features show huge potential in separating the classe variable.
+The six features shown below, being among the best!
+
+```{r features}
+featurePlot(x = training[,c("yaw_belt", "accel_belt_z", "magnet_belt_x", "magnet_belt_y", "magnet_arm_y", "magnet_forearm_x")], y = training$classe, labels = c("classe",""))
+```
+
+### scatter plot
+
+A scatter plot using just two variables, shows a huge amount of overlap in the
+classe variable groups. While there may be a difference in the variability of the classe,
+this will not help in identifying individual points. This would suggest a non-linear model
+would have most success.
+
+```{r exploratory}
+library(ggplot2)
+ggplot(training, aes(x = magnet_belt_y, y = magnet_arm_y, colour = classe)) +
+    geom_point(alpha = 0.3) + labs(title = "Scatterplot showing very little seperation")
+```
+
+## Model Building
+
+Four individual models were tested. Each of these was tested for out of sample
+error using the Base model testing and Stack training set.
+
+### Decision Tree
+
+The first model tested, was a simple Decision Tree.
+
+```{r rpart, cache = TRUE, warning = FALSE}
+set.seed(43770)
+rpartModel <- train(classe ~ ., data = training, method = "rpart")
+rpartModel
+```
+
+The tree generated is shown below.
+
+```{r treeplot, message = FALSE, warning = FALSE}
+library(rattle)
+fancyRpartPlot(rpartModel$finalModel)
+```
+
+#### Model testing
+
+```{r rpartTest, message = FALSE, warning = FALSE}
+rpartPred <- predict(rpartModel, newdata = trainingStack)
+rpartCM <- confusionMatrix(rpartPred, trainingStack$classe) #50%
+rpartCM
+```
+
+Accuracy is very low, at only `r percent(rpartCM$overall[1])`. Note that there is not
+even one Prediction of classe = "D".
+
+### Linear Discriminant Analysis
+
+The second model attempted was Linear Discriminant Analysis.
+
+```{r lda, cache = TRUE, warning = FALSE}
+set.seed(43770)
+ldaModel <- train(classe ~ ., data = training, method = "lda")
+ldaModel
+```
+
+#### Model testing
+
+```{r ldaTest, message = FALSE, warning = FALSE}
+ldaPred <- predict(ldaModel, newdata = trainingStack)
+ldaCM <- confusionMatrix(ldaPred, trainingStack$classe) #70%
+ldaCM
+```
+
+There is some improvement in accuracy, `r percent(ldaCM$overall[1])`
+
+### Stochastic Gradient Boosting
+
+As basic models were not highly successful, more sophisticated models were tested, starting with a boosted model, Stochastic Gradient Boosting.
+
+```{r gbm, cache = TRUE, warning = FALSE}
+set.seed(43770)
+gbmModel <- train(classe ~ ., data = training, method = "gbm", verbose = FALSE)
+gbmModel
+```
+
+#### Model testing
+
+```{r gbmTest, message = FALSE, warning = FALSE}
+gbmPred <- predict(gbmModel, newdata = trainingStack)
+gbmCM <- confusionMatrix(gbmPred, trainingStack$classe) #96%
+```
+
+There is a large improvement in accuracy, `r percent(gbmCM$overall[1])`. However there is
+still a little room for improvement.
+
+### Random Forest
+
+The final (base) model tried, was Random Forest, as this is known to be very successful as a classification algorithm.
+
+```{r rf, cache = TRUE, warning = FALSE, message = FALSE}
+set.seed(43770)
+rfModel <- train(classe ~ ., data = training, method = "rf")
+rfModel
+```
+
+#### Model testing
+
+```{r rfTest, message = FALSE, warning = FALSE}
+rfPred <- predict(rfModel, newdata = trainingStack)
+rfCM <- confusionMatrix(rfPred, trainingStack$classe) #98.9%
+```
+This model shows the highest accuracy, `r percent(rfCM$overall[1])`.
+
+This can be seen clearly in a comparision of the confusion matrices below.
+
+```{r confusionplot, message = FALSE, warning = FALSE}
+library(dplyr)
+normCM1 <- as.data.frame(rpartCM$table / apply(rpartCM$table, 1, sum))
+normCM1$Model = 1
+normCM2 <- as.data.frame(ldaCM$table / apply(ldaCM$table, 1, sum))
+normCM2$Model = 2
+normCM3 <- as.data.frame(gbmCM$table / apply(gbmCM$table, 1, sum))
+normCM3$Model = 3
+normCM4 <- as.data.frame(rfCM$table / apply(rfCM$table, 1, sum))
+normCM4$Model = 4
+normCM <- bind_rows(normCM1, normCM2, normCM3, normCM4)
+modelNames <- factor(1:4, labels = c("Decision Tree", "Linear Discriminant Analysis", "Stochastic Gradient Boosting", "Random Forest"))
+normCM$Model <- modelNames[normCM$Model]
+normCM$Freq[is.na(normCM$Freq)] <- 0
+ggplot(normCM, aes(y = Prediction, x = Reference, fill = Freq)) +
+    geom_tile() +
+    geom_text(aes(label = sprintf("%1.2f",Freq)), vjust = 1) +
+    scale_fill_gradient(low = "yellow", high = "red") +
+    scale_y_discrete(limits = c("E", "D", "C", "B", "A")) +
+    labs(x = "Actual", title = "Normalized Confusion Matrix") +
+    facet_wrap(~Model)
+    
+```
+
+## Model Stacking
+
+Although the Random Forest Model has very high accuracy, it was decided to see whether
+model stacking could improve it further. The predictions from the four models
+made on the Base model testing and Stack training set are used as predictors themselves.
+
+The models were stacked using a Random Forest Model.
+
+```{r comb, cache = TRUE, message = FALSE}
+stackDF <- data.frame(rpartPred, ldaPred, gbmPred, rfPred, classe = trainingStack$classe)
+combMod <- train(classe ~ ., data = stackDF, method = "rf")
+```
+
+#### Stacked Model testing
+The function stackedPredict obtains the predictions from the four base models
+and passes these to the stacked Model.
+
+```{r stackedpredict}
+stackedPredict <- function(newdata) {
+    rpartPred <- predict(rpartModel, newdata = newdata)
+    ldaPred <- predict(ldaModel, newdata = newdata)
+    gbmPred <- predict(gbmModel, newdata = newdata)
+    rfPred <- predict(rfModel, newdata = newdata)
+    stackDF <- data.frame(rpartPred, ldaPred, gbmPred, rfPred)
+    predict(combMod, newdata = stackDF)    
+}
+```
+
+
+```{r stackedTest}
+combPred <- stackedPredict(trainingTest)
+stackedCM <- confusionMatrix(combPred, trainingTest$classe) #99.1
+```
+
+There is no significant improvement over the Forest Model, with accuracy of `r percent(stackedCM$overall[1])`.
+
+
+### Final Testing
+
+This was the final model used to make the predictions for the final test set.
+
+As these final test predictions are the answers for a Coursera Quiz,
+the honour code prevents me from sharing them, sorry!
+
+However, I will confirm, that they were accurate. Further, they were identical to
+the predictions made just using the Random Forest Model.
+
+```{r finalTest, eval= FALSE}
+finalPred <- stackedPredict(finalTesting)
+data.frame(classe = finalPred)
+```
+
+```{r comment, eval = FALSE, echo = FALSE}
+#20/20 (B A B A A E D B A A B C B A E E A B B B)
+# Stacking unecessary!
+identical(combPred,rfPred)
+```
+
+#### Citation
+The data for this study comes, with thanks, from:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: <a  href = "http://groupware.les.inf.puc-rio.br/har#ixzz4e2aw89ds">http://groupware.les.inf.puc-rio.br/har#ixzz4e2aw89ds</a>
