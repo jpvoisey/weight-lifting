@@ -15,7 +15,7 @@ percent <- function(x) {
 }
 ```
 
-## introduction
+## Introduction
 
 In this <a href = "http://groupware.les.inf.puc-rio.br/har">study by Veloso at  al.</a>, accelerometers were placed in various positions on
 subjects doing weight lifting exercises. The aim is to identify what method is being used during the exercise.
@@ -41,6 +41,8 @@ An experienced weight lifter observed the exercise and classified it as:
 * D - Only lowering dumbbell halfway
 
 * E - Throwing hips
+
+This is the **classe** variable that is trying to be predicted.
 
 ## Data Processing
 
@@ -107,7 +109,7 @@ rm(trainingTMP)
 
 ## Exporatory Analysis
 
-### featureplot
+### Featureplot
 None of the individual features show huge potential in separating the classe variable.
 The six features shown below, being among the best!
 
@@ -115,12 +117,11 @@ The six features shown below, being among the best!
 featurePlot(x = training[,c("yaw_belt", "accel_belt_z", "magnet_belt_x", "magnet_belt_y", "magnet_arm_y", "magnet_forearm_x")], y = training$classe, labels = c("classe",""))
 ```
 
-### scatter plot
+### Scatter plot
 
-A scatter plot using just two variables, shows a huge amount of overlap in the
-classe variable groups. While there may be a difference in the variability of the classe,
-this will not help in identifying individual points. This would suggest a non-linear model
-would have most success.
+A scatter plot using two of these variables, shows a huge amount of overlap in the
+classe variable. While there may be a difference in the variability of the classe,
+this will not help in identifying individual points. There is not much evidence to suggest a linear model would have much success, non-linear models will be tested.
 
 ```{r exploratory}
 library(ggplot2)
@@ -131,7 +132,7 @@ ggplot(training, aes(x = magnet_belt_y, y = magnet_arm_y, colour = classe)) +
 ## Model Building
 
 Four individual models were tested. Each of these was tested for out of sample
-error using the Base model testing and Stack training set.
+error using the *Base model testing and Stack training set*.
 
 ### Decision Tree
 
@@ -219,7 +220,9 @@ rfCM <- confusionMatrix(rfPred, trainingStack$classe) #98.9%
 ```
 This model shows the highest accuracy, `r percent(rfCM$overall[1])`.
 
-This can be seen clearly in a comparision of the confusion matrices below.
+### Confusion Matrices
+
+The difference in the success of the models can be seen clearly in a comparision of the confusion matrices below.
 
 ```{r confusionplot, message = FALSE, warning = FALSE}
 library(dplyr)
@@ -240,7 +243,7 @@ ggplot(normCM, aes(y = Prediction, x = Reference, fill = Freq)) +
     geom_text(aes(label = sprintf("%1.2f",Freq)), vjust = 1) +
     scale_fill_gradient(low = "yellow", high = "red") +
     scale_y_discrete(limits = c("E", "D", "C", "B", "A")) +
-    labs(x = "Actual", title = "Normalized Confusion Matrix") +
+    labs(x = "Actual", title = "Normalized Confusion Matrix", fill="") +
     facet_wrap(~Model)
     
 ```
