@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r pecent, echo = FALSE}
 percent <- function(x) {
-    paste0(format(x * 100, digits = 4, nsmall =  2),"%")
+    paste0(format(round(x * 100, 0), nsmall =  0),"%")
 }
 ```
 
@@ -302,11 +302,6 @@ finalPred <- stackedPredict(finalTesting)
 data.frame(classe = finalPred)
 ```
 
-```{r comment, eval = FALSE, echo = FALSE}
-#20/20 (B A B A A E D B A A B C B A E E A B B B)
-# Stacking unecessary!
-identical(combPred,rfPred)
-```
 
 #### Citation
 The data for this study comes, with thanks, from:
