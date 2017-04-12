@@ -160,7 +160,7 @@ rpartCM
 ```
 
 Accuracy is very low, at only `r percent(rpartCM$overall[1])`. Note that there is not
-even one Prediction of classe = "D".
+even one Prediction of classe = "D". Out of sample error is estimated to be `r percent(1-rpartCM$overall[1])`
 
 ### Linear Discriminant Analysis
 
@@ -180,7 +180,7 @@ ldaCM <- confusionMatrix(ldaPred, trainingStack$classe) #70%
 ldaCM
 ```
 
-There is some improvement in accuracy, `r percent(ldaCM$overall[1])`
+There is some improvement in accuracy, `r percent(ldaCM$overall[1])`.  Out of sample error is estimated to be `r percent(1-ldaCM$overall[1])`
 
 ### Stochastic Gradient Boosting
 
@@ -200,7 +200,7 @@ gbmCM <- confusionMatrix(gbmPred, trainingStack$classe) #96%
 ```
 
 There is a large improvement in accuracy, `r percent(gbmCM$overall[1])`. However there is
-still a little room for improvement.
+still a little room for improvement.  Out of sample error is estimated to be `r percent(1-gbmCM$overall[1])`
 
 ### Random Forest
 
@@ -218,7 +218,7 @@ rfModel
 rfPred <- predict(rfModel, newdata = trainingStack)
 rfCM <- confusionMatrix(rfPred, trainingStack$classe) #98.9%
 ```
-This model shows the highest accuracy, `r percent(rfCM$overall[1])`.
+This model shows the highest accuracy, `r percent(rfCM$overall[1])`.  Out of sample error is estimated to be `r percent(1-rfCM$overall[1])`
 
 ### Confusion Matrices
 
@@ -283,6 +283,8 @@ stackedCM <- confusionMatrix(combPred, trainingTest$classe) #99.1
 ```
 
 There is no significant improvement over the Forest Model, with accuracy of `r percent(stackedCM$overall[1])`.
+
+The gives a **final out of sample error estimate of `r percent(1-stackedCM$overall[1])`**
 
 
 ### Final Testing
